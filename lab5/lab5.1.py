@@ -3,11 +3,16 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider, Button, CheckButtons
 from scipy.signal import butter, filtfilt
 
+# Змінна для зберігання попередніх значень шуму
+previous_noise = None
+
 def harmonic_with_noise(t, amplitude, frequency, phase, noise_mean, noise_covariance, show_noise):
+    global previous_noise
     y = amplitude * np.sin(2 * np.pi * frequency * t + phase)
     if show_noise:
-        noise = np.random.normal(noise_mean, np.sqrt(noise_covariance), len(t))
-        y += noise
+        if previous_noise is None:
+            previous_noise = np.random.normal(noise_mean, np.sqrt(noise_covariance), len(t))
+        y += previous_noise
     return y
 
 def butterworth_filter(data, cutoff_freq, fs, order=5):
@@ -43,6 +48,10 @@ line_filtered, = ax.plot(t, harmonic_with_noise(t, initial_amplitude, initial_fr
 ax.set_xlabel('Час')
 ax.set_ylabel('Значення')
 ax.legend()
+
+# Змінні для зберігання попередніх значень шуму
+previous_noise_mean = initial_noise_mean
+previous_noise_covariance = initial_noise_covariance
 
 ax_amplitude = plt.axes([0.2, 0.3, 0.65, 0.03])
 ax_frequency = plt.axes([0.2, 0.25, 0.65, 0.03])
@@ -83,12 +92,19 @@ def update(val):
     # Оновлення початкової гармоніки
     line.set_ydata(harmonic_with_noise(t, amplitude, frequency, phase, noise_mean, noise_covariance, show_noise))
 
-    #Фільтрування гармоніки та оновлення відфільтрованої гармоніки
+    # Фільтрування гармоніки та оновлення відфільтрованої гармоніки
     if show_filtered:
         filtered_data = butterworth_filter(line.get_ydata(), cutoff_frequency, fs)
         line_filtered.set_ydata(filtered_data)
     else:
         line_filtered.set_ydata(np.zeros_like(t))
+
+    # Оновлення попередніх значень шуму
+    global previous_noise, previous_noise_mean, previous_noise_covariance
+    if previous_noise is not None and (previous_noise_mean != noise_mean or previous_noise_covariance != noise_covariance):
+        previous_noise = None
+    previous_noise_mean = noise_mean
+    previous_noise_covariance = noise_covariance
 
     fig.canvas.draw_idle()
 
@@ -118,10 +134,21 @@ def reset(event):
     s_noise_mean.reset()
     s_noise_covariance.reset()
     s_cutoff_frequency.reset()
+    
+    # Скидання попередніх значень шуму до початкових
+    global previous_noise, previous_noise_mean, previous_noise_covariance
+    previous_noise = None
+    previous_noise_mean = initial_noise_mean
+    previous_noise_covariance = initial_noise_covariance
+    
+    # Встановлення чекбоксів на початкові значення
     check_show_noise.set_active(initial_show_noise)
     check_show_filtered.set_active(initial_show_filtered)
+    
+    # Оновлення графіку з врахуванням початкових параметрів
     update(None)
 
 button_reset.on_clicked(reset)
+
 
 plt.show()
